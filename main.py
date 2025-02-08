@@ -199,6 +199,22 @@ async def Play_Audio_From_Queue(vc):
     vc.play(discord.FFmpegPCMAudio(executable="ffmpeg", source=audio))
     while vc.is_playing():
       await asyncio.sleep(1)
+
+#clear Queue
+async def clear_queue():
+  global queue_index
+  #clear the queue
+  queue_list.clear()
+  #clear the audio files once the queue is done 
+  for file in glob.glob("audio*.mp3"):
+    os.remove(file)
+
+
+  audio_files = asyncio.Queue()
+  #index for the queue list
+  queue_index = 0
+
+
     
 async def download_audio(URL):
   global queue_index
@@ -221,6 +237,7 @@ async def download_audio(URL):
   # yt_link = await queue_list.get()
   #  with yt_dlp.YoutubeDL(ydl_opts) as ydl:
   #    ydl.download(yt_link)
+
 
 bot.run(os.getenv("DISCORD_TOKEN"))
 
