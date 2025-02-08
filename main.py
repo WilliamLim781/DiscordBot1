@@ -222,9 +222,7 @@ async def download_audio(URL):
   #  with yt_dlp.YoutubeDL(ydl_opts) as ydl:
   #    ydl.download(yt_link)
 
-TOKEN = os.environ['DISCORD_TOKEN']
-if TOKEN != None:
-  bot.run(os.getenv("DISCORD_TOKEN"))
+bot.run(os.getenv("DISCORD_TOKEN"))
 
 #  if message.content.startswith('!playaudio '):
 #  voice_channel = message.author.voice.channel
