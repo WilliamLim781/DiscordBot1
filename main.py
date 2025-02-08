@@ -199,12 +199,16 @@ async def Play_Audio_From_Queue(vc):
     vc.play(discord.FFmpegPCMAudio(executable="ffmpeg", source=audio))
     while vc.is_playing():
       await asyncio.sleep(1)
+  #once the audio_files queue is done then the queue i cleared
+  clear_queue()
 
 #clear Queue
 async def clear_queue():
   global queue_index
   #clear the queue
   queue_list.clear()
+  #resets the queue
+  queue_index = 0
   #clear the audio files once the queue is done 
   for file in glob.glob("audio*.mp3"):
     os.remove(file)
