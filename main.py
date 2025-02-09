@@ -9,6 +9,7 @@ import ffmpeg
 import subprocess
 import asyncio
 import glob
+from natsort import natsorted
 
 # TODO 
 # 1. Add a way to add a song to the queue
@@ -108,7 +109,7 @@ async def on_message(message):
       if vc is None:
         vc = await voice_channel.connect()
       msg = message.channel
-      await MP3_buffer_list()
+      await MP3_buffer_list(msg)
       await Play_Audio_From_Queue(vc)
       #vc.play(discord.FFmpegPCMAudio(executable = "ffmpeg",source = "audio.mp3"))
       #bot.loop.create_task(Check_If_Audio_is_playing(vc,msg))  
@@ -175,10 +176,12 @@ async def skip(ctx):
     
 ###helper functions###
 
-async def MP3_buffer_list():
-  files = glob.glob("audio*.mp3")
-  for i in range(len(files)):
-    await audio_files.put(files[i])
+async def MP3_buffer_list(msg):
+  files = glob.glob('audio*.mp3')
+  files = natsorted(files)
+  await msg.send(files)
+  for file in files:
+    await audio_files.put(file)
  
 #checking if audio is playing from bot
 async def Check_If_Audio_is_playing(vc,msg):
@@ -199,27 +202,30 @@ async def Play_Audio_From_Queue(vc):
     vc.play(discord.FFmpegPCMAudio(executable="ffmpeg", source=audio))
     while vc.is_playing():
       await asyncio.sleep(1)
+    if not vc.not_playing():
+      os.remove(audio)
   #once the audio_files queue is done then the queue i cleared
-  clear_queue()
+#  await clear_queue()
 
-#clear Queue
+#clear Queue this needs futher implementation
 async def clear_queue():
   global queue_index
   #clear the queue
   queue_list.clear()
+  print(queue_list)
   #resets the queue
   queue_index = 0
   #clear the audio files once the queue is done 
   for file in glob.glob("audio*.mp3"):
     os.remove(file)
-
+ 
 
   audio_files = asyncio.Queue()
   #index for the queue list
   queue_index = 0
 
 
-    
+#TODO the while loop is causing all downloads to happen first before playing audio 
 async def download_audio(URL):
   global queue_index
   await Add_To_Queue(URL)
