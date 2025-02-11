@@ -9,6 +9,7 @@ import ffmpeg
 import subprocess
 import asyncio
 import glob
+from natsort import natsorted
 
 # TODO 
 # 1. Add a way to add a song to the queue
@@ -30,11 +31,12 @@ import glob
 
 ## youtube example
 # url queue for playing audio
-queue_list = []
+queue_list = asyncio.Queue()
 # files for playing audio
 audio_files = asyncio.Queue()
 #index for the queue list
-queue_index = 0
+queue_index = 1
+key = 0
 
 
 #loading environment variables
@@ -103,17 +105,18 @@ async def on_message(message):
        # os.remove(Audio_File_Path)
       #with yt_dlp.YoutubeDL(ydl_opts) as ydl:
       #  ydl.download(yt_URL)
+      msg = message.channel
       await download_audio(yt_URL)
       vc =  discord.utils.get(bot.voice_clients, guild=message.guild)
       if vc is None:
         vc = await voice_channel.connect()
-      msg = message.channel
-      await MP3_buffer_list()
+      #await MP3_buffer_list(msg)
       await Play_Audio_From_Queue(vc)
       #vc.play(discord.FFmpegPCMAudio(executable = "ffmpeg",source = "audio.mp3"))
       #bot.loop.create_task(Check_If_Audio_is_playing(vc,msg))  
     else:
       await message.channel.send("You are not in a voice channel")
+
   await bot.process_commands(message)
 
   if message.content.startswith('download '):
@@ -157,11 +160,17 @@ async def stop_audio(ctx):
     
 @bot.command()
 async def Queue(ctx):
-  if len(queue_list) != 0:
-    for i in range(len(queue_list)):
-      await ctx.send(f"{i+1}. {queue_list[i]}")
+  files = glob.glob('audio*.mp3')
+  if files:
+    files = natsorted(files)
+    await ctx.send(files)
   else:
-   await ctx.send("Queue is empty.")
+    await ctx.send("there are no songs in queue")
+  #if len(queue) != 0:
+   # for i in range(len(queue)):
+    #  await ctx.send(f"{i+1}. {queue[i]}")
+  #else:
+  # await ctx.send("Queue is empty.")
   
 @bot.command()
 async def skip(ctx):
@@ -175,10 +184,12 @@ async def skip(ctx):
     
 ###helper functions###
 
-async def MP3_buffer_list():
-  files = glob.glob("audio*.mp3")
-  for i in range(len(files)):
-    await audio_files.put(files[i])
+async def MP3_buffer_list(msg):
+  files = glob.glob('audio*.mp3')
+  files = natsorted(files)
+  await msg.send(files)
+  for file in files:
+    await audio_files.put(file)
  
 #checking if audio is playing from bot
 async def Check_If_Audio_is_playing(vc,msg):
@@ -190,37 +201,67 @@ async def Check_If_Audio_is_playing(vc,msg):
 #creating a queue for URLs
 async def Add_To_Queue(URL):
   global queue_index
-  queue_list.append(URL)
+ # global queue_index
+ # queue_list.append(URL)
+  await queue_list.put((queue_index,URL))
+  queue_index = 1+queue_index
 
 #playing audio from the queue
 async def Play_Audio_From_Queue(vc):
-  while not audio_files.empty():
+  while not audio_files.empty() and not vc.is_playing():
     audio = await audio_files.get()
     vc.play(discord.FFmpegPCMAudio(executable="ffmpeg", source=audio))
     while vc.is_playing():
       await asyncio.sleep(1)
-    
-async def download_audio(URL):
+    if os.path.exists(audio):
+      os.remove(audio)   
+      
+#clear Queue this needs futher implementation
+async def clear_queue():
   global queue_index
+  #clear the queue
+  queue_list.clear()
+  print(queue_list)
+  #resets the queue
+  queue_index = 0
+  #clear the audio files once the queue is done 
+  for file in glob.glob("audio*.mp3"):
+    os.remove(file)
+ 
+
+  audio_files = asyncio.Queue()
+  #index for the queue list
+  queue_index = 0
+
+
+#TODO the while loop is causing all downloads to happen first before playing audio 
+async def download_audio(URL):
+
   await Add_To_Queue(URL)
-  ydl_opts = {
-      'format': 'bestaudio/best',
-      'outtmpl': 'audio%(autonumber)02d.%(ext)s',
-      'postprocessors':[{
-        'key': 'FFmpegExtractAudio',
-        'preferredcodec': 'mp3',
-        'preferredquality': '48',
-      }],
+
+  while not queue_list.empty():
+    file_num,url = await queue_list.get()  # Get (counter, URL)
+    filename = f"audio{file_num:03d}.mp3"
+    ydl_opts = {
+    'format': 'bestaudio/best',
+    'outtmpl': f"audio{file_num:03d}", # Assign filename directly
+    'postprocessors':[{
+      'key': 'FFmpegExtractAudio',
+      'preferredcodec': 'mp3',
+      'preferredquality': '48',
+    }],
       #'force-overwrites': True,
-  }
-  while queue_index < len(queue_list):
+    } 
+
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-      ydl.download(queue_list)
-    queue_index += 1
+      ydl.download(url)
+    await audio_files.put(filename)
+
   #if not queue_list.empty():
   # yt_link = await queue_list.get()
   #  with yt_dlp.YoutubeDL(ydl_opts) as ydl:
   #    ydl.download(yt_link)
+
 
 bot.run(os.getenv("DISCORD_TOKEN"))
 
